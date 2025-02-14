@@ -10,7 +10,7 @@ export default function Home() {
   const [tab, setTab] = useState("aiResponse");
   const [writingStyle, setWritingStyle] = useState("formal");
 
-  const API_URL = "https://your-backend-api-url.com"; // Replace with actual backend URL
+  const API_URL = "const API_URL = \"https://your-railway-url.up.railway.app\";\n"; // Replace with actual backend URL
 
   const fetchAiResponse = async () => {
     setLoading(true);
