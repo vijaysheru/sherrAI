@@ -29,3 +29,21 @@
     "typescript": "^5"
   }
 }
+{
+  "name": "frontend",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "next": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "tailwindcss": "latest",
+    "axios": "latest",
+    "framer-motion": "latest",
+    "react-icons": "latest"
+  }
+}
