@@ -1,0 +1,6 @@
+fastapi
+uvicorn
+google-generativeai
+sentence-transformers
+transformers
+torch
