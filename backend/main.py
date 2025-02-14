@@ -7,8 +7,8 @@ import logging
 import asyncio
 from fastapi.middleware.cors import CORSMiddleware
 from langchain.prompts import PromptTemplate
-from langchain.chains import LLMChain
 from langchain_openai import ChatOpenAI
+from langchain_core.runnables import RunnablePassthrough
 from dotenv import load_dotenv
 import os
 
@@ -38,7 +38,7 @@ app.add_middleware(
 logging.basicConfig(level=logging.INFO)
 
 
-# ✅ Function to Fetch AI Responses (Handles API Failures)
+# ✅ Function to Fetch AI Responses
 async def fetch_gemini_response(text):
     try:
         gemini_model = genai.GenerativeModel("gemini-pro")
@@ -47,20 +47,20 @@ async def fetch_gemini_response(text):
             return response.candidates[0].content.parts[0].text
     except Exception as e:
         logging.error(f"Gemini API error: {e}")
-    return None
+    return "⚠️ Gemini API failed."
 
 
 async def fetch_openai_response(text):
     try:
         client = openai.OpenAI(api_key=OPENAI_API_KEY)
         response = client.chat.completions.create(
-            model="gpt-4-turbo",
+            model="gpt-3.5-turbo",  # ✅ Fallback to GPT-3.5
             messages=[{"role": "user", "content": text}]
         )
         return response.choices[0].message.content
-    except Exception as e:
+    except openai.OpenAIError as e:
         logging.error(f"OpenAI API error: {e}")
-    return None
+        return "⚠️ OpenAI API failed."
 
 
 async def fetch_perplexity_response(text):
@@ -75,13 +75,16 @@ async def fetch_perplexity_response(text):
             "messages": [{"role": "user", "content": text}]
         }
         response = requests.post(url, json=data, headers=headers)
+
         if response.status_code == 200:
-            return response.json()["choices"][0]["message"]["content"]
+            response_json = response.json()
+            return response_json.get("choices", [{}])[0].get("message", {}).get("content", "⚠️ No response from Perplexity.")
         else:
             logging.error(f"Perplexity API error: {response.text}")
+            return "⚠️ Perplexity API request failed."
     except Exception as e:
         logging.error(f"Perplexity API error: {e}")
-    return None
+        return "⚠️ Perplexity API failed."
 
 
 # ✅ Route to Fetch & Compare AI Responses
@@ -98,12 +101,11 @@ async def get_ai_responses(data: dict):
     )
 
     model_responses = {
-        "Gemini": responses[0] if responses[0] else "⚠️ Gemini API failed.",
-        "ChatGPT": responses[1] if responses[1] else "⚠️ OpenAI API failed.",
-        "Perplexity": responses[2] if responses[2] else "⚠️ Perplexity API failed.",
+        "Gemini": responses[0],
+        "ChatGPT": responses[1],
+        "Perplexity": responses[2],
     }
 
-    # ✅ Summarize and Compare Responses
     summary = await summarize_responses(model_responses)
     return {"model_responses": model_responses, "summary": summary}
 
@@ -112,20 +114,13 @@ async def get_ai_responses(data: dict):
 async def summarize_responses(responses):
     try:
         text = "\n".join([f"{model}: {response}" for model, response in responses.items()])
-
-        llm = ChatOpenAI(model_name="gpt-4-turbo", openai_api_key=OPENAI_API_KEY)
-
-        prompt_template = PromptTemplate.from_template(
-            "Summarize the following AI-generated responses in a concise and clear way:\n{text}"
-        )
-        chain = LLMChain(llm=llm, prompt=prompt_template)
-
-        return chain.run(text=text)
+        llm = ChatOpenAI(model="gpt-3.5-turbo", openai_api_key=OPENAI_API_KEY)
+        chain = RunnablePassthrough() | llm
+        return chain.invoke(text)  # ✅ `.invoke()` replaces `.run()`
     except Exception as e:
         logging.error(f"Summarization Error: {e}")
         return "⚠️ Failed to generate summary."
 
 
-# ✅ Deploy API on Railway
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
