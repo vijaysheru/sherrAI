@@ -1,83 +1,82 @@
-"use client";
 import { useState } from "react";
+import axios from "axios";
+import { motion } from "framer-motion";
+import { FaSpinner } from "react-icons/fa";
 
 export default function Home() {
   const [text, setText] = useState("");
-  const [aiResponses, setAiResponses] = useState(null);
+  const [aiResponses, setAiResponses] = useState({});
+  const [summary, setSummary] = useState("");
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState("Gemini");
+  const [tab, setTab] = useState("Gemini");
 
-  const API_URL = "https://sherrai-production.up.railway.app";
+  const API_URL = "https://sherrai-production.up.railway.app"; // Update with your backend URL
 
-  const fetchAiResponses = async () => {
+  const fetchResponses = async () => {
     setLoading(true);
-    setAiResponses(null);
-
-    const response = await fetch(`${API_URL}/get-ai-responses`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text }),
-    });
-
-    const data = await response.json();
-    setAiResponses(data);
+    try {
+      const res = await axios.post(`${API_URL}/get-ai-responses`, { text });
+      setAiResponses(res.data.model_responses);
+      setSummary(res.data.summary);
+    } catch (error) {
+      console.error("API Error:", error);
+      setAiResponses({
+        Gemini: "⚠️ Error fetching from Gemini",
+        ChatGPT: "⚠️ Error fetching from OpenAI",
+        Perplexity: "⚠️ Error fetching from Perplexity",
+      });
+      setSummary("⚠️ Failed to generate summary.");
+    }
     setLoading(false);
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center py-10 px-5">
-      <h1 className="text-4xl font-bold text-[#3D8D7A] mb-5">AI Response Aggregator</h1>
+    <div className="min-h-screen flex flex-col items-center justify-center p-6">
+      <motion.h1
+        className="text-4xl font-bold text-blue-600 dark:text-blue-400 mb-6"
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
+        AI Response Aggregator
+      </motion.h1>
 
       <textarea
-        className="border border-gray-400 p-3 w-3/4 md:w-1/2 h-32 rounded-lg text-lg shadow-sm focus:outline-none"
-        placeholder="Enter your question..."
+        className="border border-gray-400 dark:border-gray-700 p-3 w-full md:w-2/3 lg:w-1/2 h-32 rounded-lg text-lg bg-white dark:bg-gray-800"
+        placeholder="Enter your text here..."
         value={text}
         onChange={(e) => setText(e.target.value)}
       />
 
       <button
-        className="px-6 py-3 mt-4 text-white font-bold bg-[#3D8D7A] hover:bg-[#2F6E5A] rounded-lg text-lg transition duration-300"
-        onClick={fetchAiResponses}
+        className="mt-4 px-6 py-3 bg-blue-600 text-white font-bold rounded-lg shadow-md hover:bg-blue-700 transition"
+        onClick={fetchResponses}
+        disabled={loading}
       >
-        {loading ? "Fetching Responses..." : "Get AI Responses"}
+        {loading ? <FaSpinner className="animate-spin mx-auto" /> : "Get AI Responses"}
       </button>
 
-      {loading && <div className="mt-4 text-lg text-gray-700">⚡ Fetching AI responses, please wait...</div>}
+      {/* Tabs */}
+      <div className="mt-6 flex space-x-4">
+        {["Gemini", "ChatGPT", "Perplexity", "Summary"].map((model) => (
+          <button
+            key={model}
+            className={`px-4 py-2 text-sm font-semibold rounded-md transition ${
+              tab === model ? "bg-blue-600 text-white" : "bg-gray-300 dark:bg-gray-700 text-gray-800 dark:text-gray-300"
+            }`}
+            onClick={() => setTab(model)}
+          >
+            {model}
+          </button>
+        ))}
+      </div>
 
-      {aiResponses && (
-        <div className="mt-6 w-3/4 md:w-1/2 bg-white p-5 rounded-lg shadow-lg">
-          <h2 className="text-2xl font-bold text-[#3D8D7A] mb-4">AI Responses</h2>
-
-          {/* Tabs for AI Models */}
-          <div className="flex gap-4">
-            {Object.keys(aiResponses.model_responses).map((model) => (
-              <button
-                key={model}
-                onClick={() => setActiveTab(model)}
-                className={`px-4 py-2 rounded-md font-bold ${
-                  activeTab === model ? "bg-[#3D8D7A] text-white" : "bg-gray-200"
-                }`}
-              >
-                {model}
-              </button>
-            ))}
-          </div>
-
-          {/* AI Model Response */}
-          <div className="mt-4">
-            <h3 className="text-xl font-bold text-[#3D8D7A]">{activeTab} Response:</h3>
-            <p className="mt-2 text-gray-800 whitespace-pre-line">
-              {aiResponses.model_responses[activeTab]}
-            </p>
-          </div>
-
-          {/* Summarization Section */}
-          <div className="mt-6">
-            <h3 className="text-xl font-bold text-[#B3D8A8]">Summary:</h3>
-            <p className="mt-2 text-gray-800">{aiResponses.summary}</p>
-          </div>
-        </div>
-      )}
+      {/* Response Display */}
+      <div className="mt-4 p-5 w-full md:w-2/3 lg:w-1/2 bg-white dark:bg-gray-800 rounded-lg shadow-md">
+        <h2 className="text-2xl font-bold text-blue-600 dark:text-blue-400">{tab} Response</h2>
+        <p className="mt-2 text-gray-800 dark:text-gray-300">
+          {tab === "Summary" ? summary : aiResponses[tab] || "No response yet."}
+        </p>
+      </div>
     </div>
   );
 }
