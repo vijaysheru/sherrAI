@@ -7,7 +7,7 @@ import logging
 import asyncio
 from fastapi.middleware.cors import CORSMiddleware
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_openai import OpenAI
+from langchain_openai import ChatOpenAI
 from langchain.chains.summarize import load_summarize_chain
 from dotenv import load_dotenv
 import os
@@ -108,7 +108,7 @@ def summarize_responses(responses):
     try:
         text = "\n".join([f"{model}: {response}" for model, response in responses.items()])
         splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
-        llm = OpenAI(model="gpt-3.5-turbo", openai_api_key=OPENAI_API_KEY)
+        llm = ChatOpenAI(model="gpt-4-turbo", openai_api_key=OPENAI_API_KEY)
         summarize_chain = load_summarize_chain(llm, chain_type="map_reduce")
         docs = splitter.create_documents([text])
         return summarize_chain.run(docs)
