@@ -7,7 +7,7 @@ import logging
 import asyncio
 from fastapi.middleware.cors import CORSMiddleware
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.llms import OpenAI
+from langchain_community.llms import OpenAI
 from langchain.chains.summarize import load_summarize_chain
 from dotenv import load_dotenv
 import os
