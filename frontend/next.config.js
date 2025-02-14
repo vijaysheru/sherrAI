@@ -1,8 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: "export", // ✅ Required for static export
+  reactStrictMode: true,
   images: {
-    unoptimized: true, // ✅ Fixes Next.js image issues on static hosting
+    unoptimized: true, // Fixes image issues
+  },
+  experimental: {
+    appDir: false, // Ensures compatibility with older Next.js projects
   },
 };
 
