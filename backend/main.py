@@ -12,7 +12,7 @@ from langchain.chains.summarize import load_summarize_chain
 from dotenv import load_dotenv
 import os
 
-# ✅ Load Environment Variables (Store API Keys Securely)
+# ✅ Load Environment Variables (Secure API Keys)
 load_dotenv()
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -40,6 +40,7 @@ logging.basicConfig(level=logging.INFO)
 
 # ✅ Function to Fetch AI Responses (Handles API Failures)
 async def fetch_gemini_response(text):
+    """Fetches response from Gemini API."""
     try:
         gemini_model = genai.GenerativeModel("gemini-pro")
         response = gemini_model.generate_content(text)
@@ -51,6 +52,7 @@ async def fetch_gemini_response(text):
 
 
 async def fetch_openai_response(text):
+    """Fetches response from OpenAI (ChatGPT) API."""
     try:
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
@@ -64,6 +66,7 @@ async def fetch_openai_response(text):
 
 
 async def fetch_perplexity_response(text):
+    """Fetches response from Perplexity AI API."""
     try:
         url = "https://api.perplexity.ai/v1/chat/completions"
         headers = {"Authorization": f"Bearer {PERPLEXITY_API_KEY}", "Content-Type": "application/json"}
@@ -79,16 +82,19 @@ async def fetch_perplexity_response(text):
 # ✅ Route to Fetch & Compare AI Responses
 @app.post("/get-ai-responses")
 async def get_ai_responses(data: dict):
+    """Fetches AI responses from Gemini, OpenAI, and Perplexity, then summarizes."""
     user_text = data.get("text", "")
     if not user_text:
         raise HTTPException(status_code=400, detail="Text input is required.")
 
+    # Fetch responses concurrently
     responses = await asyncio.gather(
         fetch_gemini_response(user_text),
         fetch_openai_response(user_text),
         fetch_perplexity_response(user_text),
     )
 
+    # Organize model responses
     model_responses = {
         "Gemini": responses[0] if responses[0] else "⚠️ Gemini API failed.",
         "ChatGPT": responses[1] if responses[1] else "⚠️ OpenAI API failed.",
@@ -102,6 +108,7 @@ async def get_ai_responses(data: dict):
 
 # ✅ AI-Based Response Summarization Using LangChain
 def summarize_responses(responses):
+    """Summarizes AI responses using LangChain."""
     try:
         text = "\n".join([f"{model}: {response}" for model, response in responses.items()])
         splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
@@ -114,6 +121,13 @@ def summarize_responses(responses):
         return "⚠️ Failed to generate summary."
 
 
-# ✅ Deploy API on Railway
+# ✅ Route to Check API Health
+@app.get("/")
+def home():
+    """Returns API status."""
+    return {"message": "FastAPI is running successfully!"}
+
+
+# ✅ Run API on Railway
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
