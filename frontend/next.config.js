@@ -1,12 +1,9 @@
 /** @type {import('next').NextConfig} */
-module.exports = {
-  reactStrictMode: true,
-  async rewrites() {
-    return [
-      {
-        source: "/api/:path*",
-        destination: `${process.env.NEXT_PUBLIC_API_URL}/:path*`,
-      },
-    ];
+const nextConfig = {
+  output: "export", // ✅ Fix for Next.js 15+
+  images: {
+    unoptimized: true, // ✅ Fixes image issues in static export
   },
 };
+
+module.exports = nextConfig;
