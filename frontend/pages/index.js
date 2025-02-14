@@ -11,7 +11,7 @@ export default function Home() {
   const [tab, setTab] = useState("Gemini");
   const [darkMode, setDarkMode] = useState(false);
 
-  const API_URL = "https://sherrai-production.up.railway.app"; // Update with your backend URL
+  const API_URL = process.env.NEXT_PUBLIC_API_URL ||"https://sherrai-production.up.railway.app"; // Update with your backend URL
 
   const fetchResponses = async () => {
     setLoading(true);
