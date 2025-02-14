@@ -8,12 +8,17 @@
     "start": "next start"
   },
   "dependencies": {
+    "axios": "latest",
+    "framer-motion": "latest",
     "next": "latest",
     "react": "latest",
     "react-dom": "latest",
-    "tailwindcss": "latest",
-    "axios": "latest",
-    "framer-motion": "latest",
-    "react-icons": "latest"
+    "react-icons": "latest",
+    "tailwindcss": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.4",
+    "@types/react": "^19.0.8",
+    "typescript": "^5.7.3"
   }
 }
