@@ -47,9 +47,11 @@ async def fetch_gemini_response(text):
         response = gemini_model.generate_content(text)
         if response and response.candidates:
             return response.candidates[0].content.parts[0].text
+        else:
+            return "⚠️ Gemini API returned an empty response."
     except Exception as e:
-        return f"⚠️ Gemini API error: {e}"
-    return "⚠️ Gemini API failed."
+        logging.error(f"❌ Gemini API Error: {str(e)}")
+        return "⚠️ Gemini API failed."
 
 async def fetch_openai_response(text):
     try:
@@ -60,7 +62,8 @@ async def fetch_openai_response(text):
         )
         return response["choices"][0]["message"]["content"]
     except Exception as e:
-        return f"⚠️ OpenAI API error: {e}"
+        logging.error(f"❌ OpenAI API Error: {str(e)}")
+        return "⚠️ OpenAI API failed."
 
 async def fetch_perplexity_response(text):
     try:
@@ -68,15 +71,26 @@ async def fetch_perplexity_response(text):
         headers = {"Authorization": f"Bearer {PERPLEXITY_API_KEY}", "Content-Type": "application/json"}
         data = {"model": "perplexity-pro", "messages": [{"role": "user", "content": text}]}
         response = requests.post(url, json=data, headers=headers)
-        return response.json()["choices"][0]["message"]["content"] if response.status_code == 200 else "⚠️ Perplexity API failed."
+
+        if response.status_code == 200:
+            json_response = response.json()
+            if "choices" in json_response:
+                return json_response["choices"][0]["message"]["content"]
+            else:
+                return "⚠️ Perplexity API returned an empty response."
+        else:
+            return f"⚠️ Perplexity API Error: {response.status_code} {response.text}"
     except Exception as e:
-        return f"⚠️ Perplexity API error: {e}"
+        logging.error(f"❌ Perplexity API Error: {str(e)}")
+        return "⚠️ Perplexity API failed."
 
 @app.post("/get-ai-responses")
 async def get_ai_responses(data: dict):
     user_text = data.get("text", "")
     if not user_text:
         raise HTTPException(status_code=400, detail="Text input is required.")
+
+    logging.info(f"🔹 Received text: {user_text}")
 
     responses = await asyncio.gather(
         fetch_gemini_response(user_text),
@@ -90,8 +104,6 @@ async def get_ai_responses(data: dict):
         "Perplexity": responses[2],
     }
 
-    summary = summarize_responses(model_responses)
-    return {"model_responses": model_responses, "summary": summary}
+    logging.info(f"✅ Model Responses: {model_responses}")
 
-if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    return {"model_responses": model_responses}
