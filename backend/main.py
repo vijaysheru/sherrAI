@@ -6,13 +6,13 @@ import requests
 import logging
 import asyncio
 from fastapi.middleware.cors import CORSMiddleware
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.prompts import PromptTemplate
+from langchain.chains import LLMChain
 from langchain_openai import ChatOpenAI
-from langchain.chains.summarize import load_summarize_chain
 from dotenv import load_dotenv
 import os
 
-# ✅ Load Environment Variables (API Keys Stored Securely)
+# ✅ Load Environment Variables
 load_dotenv()
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -52,12 +52,12 @@ async def fetch_gemini_response(text):
 
 async def fetch_openai_response(text):
     try:
-        openai.api_key = OPENAI_API_KEY  # Set OpenAI API Key properly
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
+        client = openai.OpenAI(api_key=OPENAI_API_KEY)
+        response = client.chat.completions.create(
+            model="gpt-4-turbo",
             messages=[{"role": "user", "content": text}]
         )
-        return response["choices"][0]["message"]["content"]
+        return response.choices[0].message.content
     except Exception as e:
         logging.error(f"OpenAI API error: {e}")
     return None
@@ -66,14 +66,19 @@ async def fetch_openai_response(text):
 async def fetch_perplexity_response(text):
     try:
         url = "https://api.perplexity.ai/v1/chat/completions"
-        headers = {"Authorization": f"Bearer {PERPLEXITY_API_KEY}", "Content-Type": "application/json"}
-        data = {"model": "perplexity-pro", "messages": [{"role": "user", "content": text}]}
+        headers = {
+            "Authorization": f"Bearer {PERPLEXITY_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        data = {
+            "model": "mistral-7b-instruct",
+            "messages": [{"role": "user", "content": text}]
+        }
         response = requests.post(url, json=data, headers=headers)
-
         if response.status_code == 200:
             return response.json()["choices"][0]["message"]["content"]
         else:
-            logging.error(f"Perplexity API error: {response.status_code}, {response.text}")
+            logging.error(f"Perplexity API error: {response.text}")
     except Exception as e:
         logging.error(f"Perplexity API error: {e}")
     return None
@@ -99,19 +104,23 @@ async def get_ai_responses(data: dict):
     }
 
     # ✅ Summarize and Compare Responses
-    summary = summarize_responses(model_responses)
+    summary = await summarize_responses(model_responses)
     return {"model_responses": model_responses, "summary": summary}
 
 
-# ✅ AI-Based Response Summarization Using LangChain
-def summarize_responses(responses):
+# ✅ AI-Based Response Summarization
+async def summarize_responses(responses):
     try:
         text = "\n".join([f"{model}: {response}" for model, response in responses.items()])
-        splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
-        llm = ChatOpenAI(model="gpt-4-turbo", openai_api_key=OPENAI_API_KEY)
-        summarize_chain = load_summarize_chain(llm, chain_type="map_reduce")
-        docs = splitter.create_documents([text])
-        return summarize_chain.run(docs)
+
+        llm = ChatOpenAI(model_name="gpt-4-turbo", openai_api_key=OPENAI_API_KEY)
+
+        prompt_template = PromptTemplate.from_template(
+            "Summarize the following AI-generated responses in a concise and clear way:\n{text}"
+        )
+        chain = LLMChain(llm=llm, prompt=prompt_template)
+
+        return chain.run(text=text)
     except Exception as e:
         logging.error(f"Summarization Error: {e}")
         return "⚠️ Failed to generate summary."
