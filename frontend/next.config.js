@@ -1,8 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: "export", // ✅ Fix for Next.js 15+
+  output: "export", // ✅ Required for static export
   images: {
-    unoptimized: true, // ✅ Fixes image issues in static export
+    unoptimized: true, // ✅ Fixes Next.js image issues on static hosting
   },
 };
 
