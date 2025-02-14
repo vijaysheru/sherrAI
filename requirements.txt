@@ -1,7 +1,7 @@
 fastapi
 uvicorn
 google-generativeai
-sentence-transformers
-transformers
-torch
-googlesearch-python
+openai
+requests
+langchain
+python-dotenv
