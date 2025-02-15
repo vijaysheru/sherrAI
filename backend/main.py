@@ -6,22 +6,20 @@ import logging
 import asyncio
 from fastapi.middleware.cors import CORSMiddleware
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_core.prompts import PromptTemplate
 from langchain.chains import LLMChain
 from langchain_community.chat_models import ChatOpenAI
+from langchain_core.prompts import PromptTemplate
 from dotenv import load_dotenv
 import os
+import re
+import difflib
 from transformers import pipeline
-from textblob import TextBlob
 
-# ✅ Load Environment Variables (API Keys)
+# ✅ Load Environment Variables
 load_dotenv()
-
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 PERPLEXITY_API_KEY = os.getenv("PERPLEXITY_API_KEY")
-MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
-CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY")
 
 # ✅ Configure Gemini API
 genai.configure(api_key=GEMINI_API_KEY)
@@ -38,159 +36,105 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ✅ Configure Logging
+# ✅ Logging Configuration
 logging.basicConfig(level=logging.INFO)
 
 
-# ✅ Root Endpoint (Fixes 404 Not Found)
 @app.get("/")
 def home():
-    return {"message": "FastAPI Backend is Running Successfully!"}
+    return {"message": "AI Response Aggregator Backend Running!"}
 
 
-# ✅ Health Check Endpoint
-@app.get("/status")
-def status():
-    return {"status": "Backend is up and running!"}
-
-
-# ✅ AI Response Fetching Functions
+# ✅ Fetch AI Responses
 async def fetch_gemini_response(text):
-    """Fetches response from Google's Gemini API"""
     try:
-        model = genai.GenerativeModel("gemini-pro")
-        response = model.generate_content(text)
-        return response.candidates[0].content.parts[0].text if response and response.candidates else "⚠️ Gemini API failed."
+        gemini_model = genai.GenerativeModel("gemini-pro")
+        response = gemini_model.generate_content(text)
+        if response and response.candidates:
+            return response.candidates[0].content.parts[0].text
     except Exception as e:
         logging.error(f"Gemini API error: {e}")
-        return "⚠️ Gemini API failed."
+    return "⚠️ Gemini API failed."
 
 
 async def fetch_openai_response(text):
-    """Fetches response from OpenAI's GPT"""
     try:
         url = "https://api.openai.com/v1/chat/completions"
         headers = {"Authorization": f"Bearer {OPENAI_API_KEY}", "Content-Type": "application/json"}
         data = {"model": "gpt-3.5-turbo", "messages": [{"role": "user", "content": text}]}
         response = requests.post(url, json=data, headers=headers)
-        return response.json()["choices"][0]["message"]["content"] if response.status_code == 200 else "⚠️ OpenAI API failed."
+        if response.status_code == 200:
+            return response.json()["choices"][0]["message"]["content"]
     except Exception as e:
         logging.error(f"OpenAI API error: {e}")
-        return "⚠️ OpenAI API failed."
+    return "⚠️ OpenAI API failed."
 
 
 async def fetch_perplexity_response(text):
-    """Fetches response from Perplexity AI"""
     try:
         url = "https://api.perplexity.ai/v1/chat/completions"
         headers = {"Authorization": f"Bearer {PERPLEXITY_API_KEY}", "Content-Type": "application/json"}
         data = {"model": "perplexity-pro", "messages": [{"role": "user", "content": text}]}
         response = requests.post(url, json=data, headers=headers)
-        return response.json()["choices"][0]["message"]["content"] if response.status_code == 200 else "⚠️ Perplexity API failed."
+        if response.status_code == 200:
+            return response.json()["choices"][0]["message"]["content"]
     except Exception as e:
         logging.error(f"Perplexity API error: {e}")
-        return "⚠️ Perplexity API failed."
+    return "⚠️ Perplexity API failed."
 
 
-async def fetch_mistral_response(text):
-    """Fetches response from Mistral AI"""
-    try:
-        url = "https://api.mistral.ai/v1/chat/completions"
-        headers = {"Authorization": f"Bearer {MISTRAL_API_KEY}", "Content-Type": "application/json"}
-        data = {"model": "mistral-medium", "messages": [{"role": "user", "content": text}]}
-        response = requests.post(url, json=data, headers=headers)
-        return response.json()["choices"][0]["message"]["content"] if response.status_code == 200 else "⚠️ Mistral API failed."
-    except Exception as e:
-        logging.error(f"Mistral API error: {e}")
-        return "⚠️ Mistral API failed."
-
-
-async def fetch_claude_response(text):
-    """Fetches response from Claude AI"""
-    try:
-        url = "https://api.anthropic.com/v1/complete"
-        headers = {"Authorization": f"Bearer {CLAUDE_API_KEY}", "Content-Type": "application/json"}
-        data = {"prompt": text, "max_tokens_to_sample": 300}
-        response = requests.post(url, json=data, headers=headers)
-        return response.json()["completion"] if response.status_code == 200 else "⚠️ Claude API failed."
-    except Exception as e:
-        logging.error(f"Claude API error: {e}")
-        return "⚠️ Claude API failed."
-
-
-# ✅ Route to Fetch & Compare AI Responses
 @app.post("/get-ai-responses")
 async def get_ai_responses(data: dict):
-    """Fetches AI responses from multiple models and summarizes the output"""
-    user_text = data.get("text", "")
+    user_text = data.get("text", "").strip()
     if not user_text:
         raise HTTPException(status_code=400, detail="Text input is required.")
 
-    # Fetch responses concurrently
     responses = await asyncio.gather(
         fetch_gemini_response(user_text),
         fetch_openai_response(user_text),
         fetch_perplexity_response(user_text),
-        fetch_mistral_response(user_text),
-        fetch_claude_response(user_text),
     )
 
     model_responses = {
         "Gemini": responses[0],
         "ChatGPT": responses[1],
         "Perplexity": responses[2],
-        "Mistral": responses[3],
-        "Claude": responses[4],
     }
 
-    summary = summarize_responses(model_responses)
-
-    return {"model_responses": model_responses, "summary": summary}
+    return {"model_responses": model_responses}
 
 
-# ✅ AI-Based Response Summarization Using LangChain
-def summarize_responses(responses):
-    """Summarizes AI model responses using LangChain"""
-    try:
-        text = "\n".join([f"{model}: {response}" for model, response in responses.items()])
-        splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
+# ✅ AI Plagiarism Detection
+@app.post("/check-plagiarism")
+async def check_plagiarism(data: dict):
+    """Compares text with stored academic sources"""
+    text = data.get("text", "").strip()
+    sources = ["Sample academic source 1", "Example reference document"]
 
-        prompt_template = PromptTemplate.from_template("Summarize this text: {text}")
-        llm = ChatOpenAI(model="gpt-3.5-turbo", openai_api_key=OPENAI_API_KEY)
-        chain = LLMChain(llm=llm, prompt=prompt_template)
+    similarity_scores = [difflib.SequenceMatcher(None, text, source).ratio() for source in sources]
+    plagiarism_score = max(similarity_scores) * 100  # Convert to percentage
 
-        docs = splitter.create_documents([text])
-        return chain.run(text=text)
-    except Exception as e:
-        logging.error(f"Summarization Error: {e}")
-        return "⚠️ Failed to generate summary."
+    return {"plagiarism_score": round(plagiarism_score, 2)}
+
+
+# ✅ AI Detection
+@app.post("/check-ai")
+async def check_ai(data: dict):
+    text = data.get("text", "").strip()
+    ai_patterns = ["GPT", "AI-generated", "machine-generated", "automated"]
+    detected = any(re.search(pattern, text, re.IGNORECASE) for pattern in ai_patterns)
+    result_text = "AI-generated" if detected else "Human-written"
+    return {"ai_check_result": result_text}
 
 
 # ✅ AI Humanization
-@app.post("/humanize-text")
-async def humanize_text_api(data: dict):
-    """Rewrites AI-generated text to make it more human-like"""
-    text = data.get("text", "")
-    if not text:
-        raise HTTPException(status_code=400, detail="Text input is required.")
-
-    return {"humanized_text": TextBlob(text).correct()}
+@app.post("/humanize-ai")
+async def humanize_ai(data: dict):
+    text = data.get("text", "").strip()
+    humanizer = pipeline("text-generation", model="EleutherAI/gpt-neo-1.3B")
+    humanized_text = humanizer(text, max_length=200)[0]["generated_text"]
+    return {"humanized_text": humanized_text}
 
 
-# ✅ AI Content Detection
-detector = pipeline("text-classification", model="roberta-base-openai-detector")
-
-@app.post("/check-ai-text")
-async def check_ai_generated(data: dict):
-    """Detects if text is AI-generated"""
-    text = data.get("text", "")
-    if not text:
-        raise HTTPException(status_code=400, detail="Text input is required.")
-
-    result = detector(text)
-    return {"ai_score": result[0]["score"]}
-
-
-# ✅ Run API Locally
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
