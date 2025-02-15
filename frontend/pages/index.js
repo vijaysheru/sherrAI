@@ -2,7 +2,6 @@ import { useState } from "react";
 import axios from "axios";
 import { motion } from "framer-motion";
 import { FaSpinner } from "react-icons/fa";
-import CircularProgressbar from "react-circular-progressbar"; // ✅ Ensure correct import
 import "react-circular-progressbar/dist/styles.css"; // ✅ Ensure styles are loaded
 
 export default function Home() {
