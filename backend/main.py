@@ -11,6 +11,8 @@ from langchain.chains import LLMChain
 from langchain_community.chat_models import ChatOpenAI
 from dotenv import load_dotenv
 import os
+from transformers import pipeline
+from textblob import TextBlob
 
 # ✅ Load Environment Variables (API Keys)
 load_dotenv()
@@ -18,6 +20,8 @@ load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 PERPLEXITY_API_KEY = os.getenv("PERPLEXITY_API_KEY")
+MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
+CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY")
 
 # ✅ Configure Gemini API
 genai.configure(api_key=GEMINI_API_KEY)
@@ -50,31 +54,29 @@ def status():
     return {"status": "Backend is up and running!"}
 
 
-# ✅ Function to Fetch AI Responses with Error Handling
+# ✅ AI Response Fetching Functions
 async def fetch_gemini_response(text):
     """Fetches response from Google's Gemini API"""
     try:
-        gemini_model = genai.GenerativeModel("gemini-pro")
-        response = gemini_model.generate_content(text)
-        if response and response.candidates:
-            return response.candidates[0].content.parts[0].text
+        model = genai.GenerativeModel("gemini-pro")
+        response = model.generate_content(text)
+        return response.candidates[0].content.parts[0].text if response and response.candidates else "⚠️ Gemini API failed."
     except Exception as e:
         logging.error(f"Gemini API error: {e}")
-    return "⚠️ Gemini API failed."
+        return "⚠️ Gemini API failed."
 
 
 async def fetch_openai_response(text):
-    """Fetches response from OpenAI's ChatGPT API"""
+    """Fetches response from OpenAI's GPT"""
     try:
         url = "https://api.openai.com/v1/chat/completions"
         headers = {"Authorization": f"Bearer {OPENAI_API_KEY}", "Content-Type": "application/json"}
         data = {"model": "gpt-3.5-turbo", "messages": [{"role": "user", "content": text}]}
         response = requests.post(url, json=data, headers=headers)
-        if response.status_code == 200:
-            return response.json()["choices"][0]["message"]["content"]
+        return response.json()["choices"][0]["message"]["content"] if response.status_code == 200 else "⚠️ OpenAI API failed."
     except Exception as e:
         logging.error(f"OpenAI API error: {e}")
-    return "⚠️ OpenAI API failed."
+        return "⚠️ OpenAI API failed."
 
 
 async def fetch_perplexity_response(text):
@@ -84,11 +86,36 @@ async def fetch_perplexity_response(text):
         headers = {"Authorization": f"Bearer {PERPLEXITY_API_KEY}", "Content-Type": "application/json"}
         data = {"model": "perplexity-pro", "messages": [{"role": "user", "content": text}]}
         response = requests.post(url, json=data, headers=headers)
-        if response.status_code == 200:
-            return response.json()["choices"][0]["message"]["content"]
+        return response.json()["choices"][0]["message"]["content"] if response.status_code == 200 else "⚠️ Perplexity API failed."
     except Exception as e:
         logging.error(f"Perplexity API error: {e}")
-    return "⚠️ Perplexity API failed."
+        return "⚠️ Perplexity API failed."
+
+
+async def fetch_mistral_response(text):
+    """Fetches response from Mistral AI"""
+    try:
+        url = "https://api.mistral.ai/v1/chat/completions"
+        headers = {"Authorization": f"Bearer {MISTRAL_API_KEY}", "Content-Type": "application/json"}
+        data = {"model": "mistral-medium", "messages": [{"role": "user", "content": text}]}
+        response = requests.post(url, json=data, headers=headers)
+        return response.json()["choices"][0]["message"]["content"] if response.status_code == 200 else "⚠️ Mistral API failed."
+    except Exception as e:
+        logging.error(f"Mistral API error: {e}")
+        return "⚠️ Mistral API failed."
+
+
+async def fetch_claude_response(text):
+    """Fetches response from Claude AI"""
+    try:
+        url = "https://api.anthropic.com/v1/complete"
+        headers = {"Authorization": f"Bearer {CLAUDE_API_KEY}", "Content-Type": "application/json"}
+        data = {"prompt": text, "max_tokens_to_sample": 300}
+        response = requests.post(url, json=data, headers=headers)
+        return response.json()["completion"] if response.status_code == 200 else "⚠️ Claude API failed."
+    except Exception as e:
+        logging.error(f"Claude API error: {e}")
+        return "⚠️ Claude API failed."
 
 
 # ✅ Route to Fetch & Compare AI Responses
@@ -104,16 +131,18 @@ async def get_ai_responses(data: dict):
         fetch_gemini_response(user_text),
         fetch_openai_response(user_text),
         fetch_perplexity_response(user_text),
+        fetch_mistral_response(user_text),
+        fetch_claude_response(user_text),
     )
 
-    # Store AI model responses
     model_responses = {
         "Gemini": responses[0],
         "ChatGPT": responses[1],
         "Perplexity": responses[2],
+        "Mistral": responses[3],
+        "Claude": responses[4],
     }
 
-    # Generate Summary
     summary = summarize_responses(model_responses)
 
     return {"model_responses": model_responses, "summary": summary}
@@ -137,6 +166,31 @@ def summarize_responses(responses):
         return "⚠️ Failed to generate summary."
 
 
-# ✅ Run API Locally (For Development)
+# ✅ AI Humanization
+@app.post("/humanize-text")
+async def humanize_text_api(data: dict):
+    """Rewrites AI-generated text to make it more human-like"""
+    text = data.get("text", "")
+    if not text:
+        raise HTTPException(status_code=400, detail="Text input is required.")
+
+    return {"humanized_text": TextBlob(text).correct()}
+
+
+# ✅ AI Content Detection
+detector = pipeline("text-classification", model="roberta-base-openai-detector")
+
+@app.post("/check-ai-text")
+async def check_ai_generated(data: dict):
+    """Detects if text is AI-generated"""
+    text = data.get("text", "")
+    if not text:
+        raise HTTPException(status_code=400, detail="Text input is required.")
+
+    result = detector(text)
+    return {"ai_score": result[0]["score"]}
+
+
+# ✅ Run API Locally
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
