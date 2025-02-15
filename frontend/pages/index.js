@@ -1,7 +1,9 @@
 import { useState } from "react";
 import axios from "axios";
 import { motion } from "framer-motion";
-import { FaSpinner, FaCheck, FaTimes, FaRobot, FaUser } from "react-icons/fa";
+import { FaSpinner, FaRobot, FaUser } from "react-icons/fa"; // ✅ Removed unused imports
+
+// ✅ Ensure the rest of the component code remains unchanged
 
 export default function Home() {
   const [text, setText] = useState("");

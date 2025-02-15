@@ -1,11 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  swcMinify: true,
   images: {
-    unoptimized: true, // Fixes image issues
-  },
-  experimental: {
-    appDir: false, // Ensures compatibility with older Next.js projects
+    domains: ["your-image-domain.com"], // ✅ Add any image domains needed
   },
 };
 
